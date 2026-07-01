@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "llm-caption"
+version = "0.1.0"
+description = "WD-EVA02 タグと LLM による画像キャプション生成ツール"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    # torch / torchvision は環境依存（CUDA 版など）のため含めない。
+    # README の手順に従って別途インストールすること。
+    "timm>=1.0.7",
+    "safetensors>=0.4",
+    "pandas>=2.0",
+    "Pillow>=10.0",
+    "numpy>=1.24",
+    "openai>=1.30",
+    "python-dotenv>=1.0",
+]
+
+# `llm-caption` コマンドで scripts/caption.py の main() を起動する
+[project.scripts]
+llm-caption = "scripts.caption:main"
+
+[tool.setuptools]
+packages = ["scripts"]

@@ -1,0 +1,26 @@
+.claude/
+CLAUDE.md
+
+sample/*.txt
+
+# 環境設定（秘匿情報を含む）
+.env
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+*.egg-info/
+build/
+dist/
+llm_caption.egg-info/
+
+# モデル / データセット（リポジトリに含めない）
+model/*.*
+images/
+ignore_tags/*.csv
+
+# OS
+Thumbs.db
+desktop.ini
