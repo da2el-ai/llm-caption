@@ -54,7 +54,11 @@ class LLMCaptioner:
         self.send_image = send_image
         self.disable_thinking = disable_thinking
         self.language = language
-        self.system_prompt = system_prompt or _DEFAULT_SYSTEM_PROMPT.format(language=language)
+        # .env で上書きした場合も既定文と同様に {language} を言語名へ置換する。
+        # .replace を使うことでプロンプト内の他の中括弧を壊さない。
+        self.system_prompt = (system_prompt or _DEFAULT_SYSTEM_PROMPT).replace(
+            "{language}", language
+        )
 
     def _build_user_content(self, image_path: Path, danbooru_tags: str):
         parts: list[dict] = []

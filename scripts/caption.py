@@ -4,6 +4,7 @@
   python caption.py --mode danbooru        # WD-EVA02 で Danbooru タグのみ生成
   python caption.py --mode natural         # LLM で自然言語キャプション生成（タグがあれば利用）
   python caption.py --mode both            # タグ生成 -> 自然言語キャプション生成（既定）
+  python caption.py --report count         # 既存キャプションのタグ出現頻度を集計（生成なし）
 
 入力フォルダやモデル設定は .env で指定する。--input で上書き可能。
 キャプションは画像と同名の .txt に「Danbooruタグ」「自然言語」の順で書き込む。
@@ -13,7 +14,9 @@
 from __future__ import annotations
 
 import argparse
+import csv
 import sys
+from collections import Counter
 from pathlib import Path
 
 from .config import IMAGE_EXTENSIONS, Settings
@@ -58,6 +61,62 @@ def write_caption(txt_path: Path, danbooru: str, natural: str) -> None:
     txt_path.write_text(text + "\n", encoding="utf-8")
 
 
+def collect_danbooru_tags(images: list[Path]) -> tuple[Counter[str], int]:
+    """各画像に対応する .txt の Danbooru ブロックからタグを集計する。
+
+    戻り値は (タグの出現回数カウンタ, 読み込んだ .txt の件数)。
+    自然言語ブロックは対象外。タグは保存された表記のまま数える。
+    """
+    counter: Counter[str] = Counter()
+    txt_count = 0
+    for image_path in images:
+        txt_path = image_path.with_suffix(".txt")
+        if not txt_path.exists():
+            continue
+        txt_count += 1
+        danbooru, _ = read_caption(txt_path)
+        if not danbooru:
+            continue
+        for tag in danbooru.split(","):
+            tag = tag.strip()
+            if tag:
+                counter[tag] += 1
+    return counter, txt_count
+
+
+def run_report(image_dir: Path, images: list[Path], sort_by: str) -> int:
+    """Danbooru タグ出現頻度を image_dir 直下の _report_.csv に書き出す。"""
+    counter, txt_count = collect_danbooru_tags(images)
+
+    if txt_count == 0:
+        print(
+            f"[エラー] 集計対象のキャプションファイル（.txt）が見つかりません: {image_dir}",
+            file=sys.stderr,
+        )
+        return 1
+    if not counter:
+        print(
+            "[警告] Danbooru タグが 1 件も見つからなかったため、レポートは作成しません。",
+            file=sys.stderr,
+        )
+        return 0
+
+    if sort_by == "count":
+        # 出現回数の降順。同数はタグ名の昇順で安定させる。
+        items = sorted(counter.items(), key=lambda kv: (-kv[1], kv[0]))
+    else:  # "tag"
+        items = sorted(counter.items(), key=lambda kv: kv[0])
+
+    report_path = image_dir / "_report_.csv"
+    with report_path.open("w", encoding="utf-8", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow(["tag", "count"])
+        writer.writerows(items)
+
+    print(f"レポート出力: {report_path}（{len(items)} タグ）")
+    return 0
+
+
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="WD-EVA02 タグ + LLM による画像キャプション生成",
@@ -65,8 +124,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--mode",
         choices=("danbooru", "natural", "both"),
-        default="both",
-        help="生成するキャプションの種類（既定: both）",
+        default=None,
+        help="生成するキャプションの種類（既定: both。--report のみ指定時は生成を省略）",
     )
     parser.add_argument(
         "--input",
@@ -89,6 +148,12 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         action="store_true",
         help="生成したキャプション（Danbooru タグ・LLM の応答）をコンソールに表示する",
     )
+    parser.add_argument(
+        "--report",
+        choices=("count", "tag"),
+        default=None,
+        help="Danbooru タグ出現頻度を _report_.csv に集計（count=回数順 / tag=英数順）",
+    )
     return parser.parse_args(argv)
 
 
@@ -106,10 +171,15 @@ def main(argv: list[str] | None = None) -> int:
         print(f"[警告] 画像が見つかりませんでした: {image_dir}", file=sys.stderr)
         return 0
 
-    print(f"対象画像: {len(images)} 件 / モード: {args.mode}")
+    # --report 単独指定（--mode 未指定）のときは生成せず集計のみ行う
+    if args.report and args.mode is None:
+        return run_report(image_dir, images, args.report)
 
-    want_danbooru = args.mode in ("danbooru", "both")
-    want_natural = args.mode in ("natural", "both")
+    mode = args.mode or "both"
+    print(f"対象画像: {len(images)} 件 / モード: {mode}")
+
+    want_danbooru = mode in ("danbooru", "both")
+    want_natural = mode in ("natural", "both")
 
     # 重い依存は必要なときだけ読み込む（遅延初期化）
     tagger = None
@@ -198,7 +268,15 @@ def main(argv: list[str] | None = None) -> int:
             print(f"{prefix} [失敗] {image_path}: {exc}", file=sys.stderr)
 
     print(f"完了: 生成 {processed} / スキップ {skipped} / 失敗 {failed}")
-    return 1 if failed else 0
+    exit_code = 1 if failed else 0
+
+    # --mode と併用時は、キャプション生成後にレポートを作成する
+    if args.report:
+        report_code = run_report(image_dir, images, args.report)
+        if report_code != 0:
+            exit_code = report_code
+
+    return exit_code
 
 
 if __name__ == "__main__":
