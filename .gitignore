@@ -1,9 +1,6 @@
 .claude/
 CLAUDE.md
 
-sample/*.txt
-sample/*.csv
-
 # 環境設定（秘匿情報を含む）
 .env
 
