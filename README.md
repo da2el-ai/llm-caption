@@ -5,7 +5,10 @@ WD-EVA02 タガーとローカル / 外部 LLM を使い、画像から学習用
 1. **WD-EVA02** で Danbooru タグを推論
 2. **LLM（Gemma 等）** に画像とタグを渡して自然言語キャプションを生成
 3. 画像と同名の `.txt` に「タグ」「自然言語」の順で書き出す
-4. danbooruタグの使用回数レポートを出力
+4. 除外タグの指定が可能
+5. danbooruタグの使用回数レポートを出力
+
+実際の出力サンプルは `sample/` フォルダをご覧ください。
 
 ## 環境構築
 
@@ -67,21 +70,38 @@ model/
 
 ### 除外タグリスト（任意）
 
-キャラクター名や作品名を Danbooru タグから除外したい場合、`.env` の `IGNORE_TAGS_DIR`
-（既定 `./ignore_tags`）に除外タグの CSV を置きます。直下の `*.csv` をすべて読み込み、
-各行の先頭カラムのタグを出力から除外します（1 行目はヘッダとして読み飛ばし）。
+キャラクター名や作品名などを Danbooru タグから除外したい場合、`.env` の `IGNORE_TAGS_DIR`
+（既定 `./ignore_tags`）に除外タグの CSV を置きます。
+直下の `*.csv` をすべて読み込みますので、ユーザーが自由に追加できます。
+
 CSV を置かなければ除外は行われません。
 
-入手元（Danbooru wildcards）:
+```
+ignore_tags/
+├─ {任意の名前}.csv
+└─ {任意の名前}.csv
+```
+
+**フォーマット：**
+
+- 各行の先頭カラムのタグを出力から除外します
+- 1 行目はヘッダとして読み飛ばします
+- カンマ `,` は無くても問題ありません
+
+```
+tag,count # 1行目は無視されます
+masterpiece,123
+best quality
+```
+
+**おすすめ：**
+
+Danbooruタグのデータットを使うのがおすすめです。
 
 - キャラクター名: https://huggingface.co/datasets/X779/Danbooruwildcards/blob/main/character.csv
 - 作品名: https://huggingface.co/datasets/X779/Danbooruwildcards/blob/main/copyright.csv
 
-```
-ignore_tags/
-├─ character.csv
-└─ copyright.csv
-```
+
 
 ### LLM（Gemma）
 
